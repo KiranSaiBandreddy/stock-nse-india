@@ -15,7 +15,7 @@ import { mainRouter } from './routes'
 import cors from 'cors';
 
 const app = express()
-const port = process.env.PORT || 3000
+const port = process.env.PORT || 5000
 const hostUrl = process.env.HOST_URL || `http://localhost:${port}`
 
 // CORS Configuration from environment variables
@@ -38,11 +38,7 @@ const corsHeaders = process.env.CORS_HEADERS ?
   ['Content-Type', 'Authorization'];
 
 app.use(cors({
-  origin: [
-    ...corsOrigins,
-    /^http:\/\/localhost:\d+$/,  // Allow any localhost port
-    /^http:\/\/127\.0\.0\.1:\d+$/ // Allow any 127.0.0.1 port
-  ],
+  origin: true, // Allow all origins for Replit proxy environment
   methods: corsMethods,
   allowedHeaders: corsHeaders,
   credentials: process.env.CORS_CREDENTIALS !== 'false'
@@ -77,7 +73,7 @@ const server = new ApolloServer({
 
 server.start().then(() => {
     server.applyMiddleware({ app });
-    app.listen(port, () => {
+    app.listen(port, '0.0.0.0', () => {
         console.log(`NseIndia App started in port ${port}`);
         console.log(`For API docs: ${hostUrl}/api-docs`);
         console.log(`Open ${hostUrl} in browser.`);
