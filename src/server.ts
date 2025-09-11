@@ -15,7 +15,7 @@ import { mainRouter } from './routes'
 import cors from 'cors';
 
 const app = express()
-const port = process.env.PORT || 5000
+const port = parseInt(process.env.PORT || '5000', 10)
 const hostUrl = process.env.HOST_URL || `http://localhost:${port}`
 
 // CORS Configuration from environment variables
