@@ -1,4 +1,4 @@
-import { NseIndia } from './index'
+import { NseIndia, ApiList } from './index'
 import { IndexEquityInfo } from './interface'
 
 const nseIndia = new NseIndia()
@@ -36,4 +36,12 @@ export const getMostActiveEquities = async (indexSymbol: string): Promise<{ byVo
         byValue: [...indexData.data].sort((a, b) => b.totalTradedValue - a.totalTradedValue)
 
     }
+}
+
+/**
+ * Get top 25 volume gainers from NSE live analysis
+ * @returns Promise with top 25 volume gainers data
+ */
+export const getTop25VolumeGainers = async (): Promise<any> => {
+    return await nseIndia.getDataByEndpoint(ApiList.LIVE_ANALYSIS_VOLUME_GAINERS)
 }

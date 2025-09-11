@@ -3,7 +3,8 @@ import { openapiSpecification } from './swaggerDocOptions'
 import { NseIndia, ApiList } from './index'
 import {
     getGainersAndLosersByIndex,
-    getMostActiveEquities
+    getMostActiveEquities,
+    getTop25VolumeGainers
 } from './helpers'
 
 const mainRouter:Router = Router()
@@ -844,6 +845,29 @@ mainRouter.get('/api/gainersAndLosers/:indexSymbol', async (req, res) => {
 mainRouter.get('/api/mostActive/:indexSymbol', async (req, res) => {
     try {
         res.json(await getMostActiveEquities(req.params.indexSymbol))
+    } catch (error) {
+        res.status(400).json(error)
+    }
+})
+
+/**
+ * @openapi
+ * /api/top25VolumeGainers:
+ *   get:
+ *     description: To get top 25 volume gainers from NSE live analysis
+ *     tags:
+ *       - Analysis
+ *     produces:
+ *       - application/json
+ *     responses:
+ *       200:
+ *         description: Returns a JSON object of top 25 volume gainers
+ *       400:
+ *         description: Returns a JSON error object of API call
+ */
+mainRouter.get('/api/top25VolumeGainers', async (_req, res) => {
+    try {
+        res.json(await getTop25VolumeGainers())
     } catch (error) {
         res.status(400).json(error)
     }

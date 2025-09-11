@@ -37,7 +37,8 @@ export enum ApiList {
     MARKET_DATA_PRE_OPEN = '/api/market-data-pre-open?key=ALL',
     MERGED_DAILY_REPORTS_CAPITAL = '/api/merged-daily-reports?key=favCapital',
     MERGED_DAILY_REPORTS_DERIVATIVES = '/api/merged-daily-reports?key=favDerivatives',
-    MERGED_DAILY_REPORTS_DEBT = '/api/merged-daily-reports?key=favDebt'
+    MERGED_DAILY_REPORTS_DEBT = '/api/merged-daily-reports?key=favDebt',
+    LIVE_ANALYSIS_VOLUME_GAINERS = '/api/live-analysis-volume-gainers'
 }
 
 export class NseIndia {
