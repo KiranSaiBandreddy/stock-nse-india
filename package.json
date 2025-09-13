@@ -31,8 +31,7 @@
   },
   "lint-staged": {
     "src/**/*.{ts,tsx,js,jsx}": [
-      "yarn lint --fix",
-      "git add"
+      "eslint --fix"
     ]
   },
   "prepare": "husky install",
@@ -66,7 +65,7 @@
     "apollo-server-core": "^3.10.0",
     "apollo-server-express": "^3.10.0",
     "asciichart": "^1.5.25",
-    "axios": "^1.4.0",
+    "axios": "^1.12.1",
     "chalk": "^4.1.2",
     "cheerio": "1.0.0-rc.10",
     "cors": "^2.8.5",

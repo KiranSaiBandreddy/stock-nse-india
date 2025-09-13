@@ -3,7 +3,7 @@ import { Browser, Page, Cookie } from 'puppeteer'
 import stealthPlugin from 'puppeteer-extra-plugin-stealth'
 import chromium from '@sparticuz/chromium'
 import UserAgent from 'user-agents'
-import { getDateRangeChunks, sleep } from './utils'
+import { getDateRangeChunks } from './utils'
 import {
     DateRange,
     IntradayData,
@@ -66,13 +66,22 @@ export class NseIndia {
         if (this.cookies === '' || this.cookieUsedCount > 10 || this.cookieExpiry <= new Date().getTime()) {
             this.userAgent = new UserAgent().toString()
             puppeteer.use(stealthPlugin());
-            this.browser = await puppeteer.launch({
-                args: chromium.args,
-                defaultViewport: chromium.defaultViewport,
-                executablePath: await chromium.executablePath(),
-                headless: chromium.headless
-            });
-            this.page = await this.browser.newPage();
+            if (this.browser && this.browser.isConnected()) {
+                this.page = await this.browser.newPage();
+            } else {
+                const browserWSEndpoint = process.env.BROWSER_WS_ENDPOINT;
+                if (browserWSEndpoint) {
+                    this.browser = await puppeteer.connect({ browserWSEndpoint });
+                } else {
+                    this.browser = await puppeteer.launch({
+                        args: chromium.args,
+                        defaultViewport: chromium.defaultViewport,
+                        executablePath: await chromium.executablePath(),
+                        headless: chromium.headless
+                    });
+                }
+                this.page = await this.browser.newPage();
+            }
             await this.page.setUserAgent(this.userAgent);
             await this.page.goto(`${this.baseUrl}/get-quotes/equity?symbol=TCS`, { waitUntil: 'networkidle2' });
             const cookies = await this.page.cookies();
@@ -88,7 +97,7 @@ export class NseIndia {
      * @param url NSE API's URL
      * @returns JSON data from NSE India
      */
-    async getData(url: string): Promise<any> {
+    async getData<T>(url: string): Promise<T> {
         let retries = 0
         let hasError = false
         do {
@@ -104,7 +113,7 @@ export class NseIndia {
                     'Cookie': await this.getNseCookies(),
                     'User-Agent': this.userAgent
                 });
-                return response;
+                return response as T;
             } catch (error) {
                 hasError = true
                 retries++
@@ -112,7 +121,7 @@ export class NseIndia {
                     await this.page.close();
                     this.page = null;
                 }
-                if (this.browser) {
+                if (this.browser && !this.browser.isConnected()) {
                     await this.browser.close();
                     this.browser = null;
                 }
@@ -120,21 +129,24 @@ export class NseIndia {
                     throw error
             }
         } while (hasError);
+        return {} as T
     }
     /**
      * 
      * @param apiEndpoint 
      * @returns 
      */
-    async getDataByEndpoint(apiEndpoint: string): Promise<any> {
-        return this.getData(`${this.baseUrl}${apiEndpoint}`)
+    async getDataByEndpoint<T>(apiEndpoint: string): Promise<T> {
+        return this.getData<T>(`${this.baseUrl}${apiEndpoint}`)
     }
     /**
      * 
      * @returns List of NSE equity symbols
      */
     async getAllStockSymbols(): Promise<string[]> {
-        const { data } = await this.getDataByEndpoint(ApiList.MARKET_DATA_PRE_OPEN)
+        const { data } = await this.getDataByEndpoint<{ data: { metadata: { symbol: string } }[] }>(
+            ApiList.MARKET_DATA_PRE_OPEN
+        )
         return data.map((obj: { metadata: { symbol: string } }) => obj.metadata.symbol).sort()
     }
     /**
@@ -143,7 +155,8 @@ export class NseIndia {
      * @returns 
      */
     getEquityDetails(symbol: string): Promise<EquityDetails> {
-        return this.getDataByEndpoint(`/api/quote-equity?symbol=${encodeURIComponent(symbol.toUpperCase())}`)
+        const url = `/api/quote-equity?symbol=${encodeURIComponent(symbol.toUpperCase())}`
+        return this.getDataByEndpoint<EquityDetails>(url)
     }
     /**
      * 
@@ -151,7 +164,7 @@ export class NseIndia {
      * @returns 
      */
     getEquityTradeInfo(symbol: string): Promise<EquityTradeInfo> {
-        return this.getDataByEndpoint(`/api/quote-equity?symbol=${encodeURIComponent(symbol
+        return this.getDataByEndpoint<EquityTradeInfo>(`/api/quote-equity?symbol=${encodeURIComponent(symbol
             .toUpperCase())}&section=trade_info`)
     }
 
@@ -161,7 +174,7 @@ export class NseIndia {
      * @returns 
      */
     getEquityCorporateInfo(symbol: string): Promise<EquityCorporateInfo> {
-        return this.getDataByEndpoint(`/api/top-corp-info?symbol=${encodeURIComponent(symbol
+        return this.getDataByEndpoint<EquityCorporateInfo>(`/api/top-corp-info?symbol=${encodeURIComponent(symbol
             .toUpperCase())}&market=equities`)
     }
     /**
@@ -176,7 +189,7 @@ export class NseIndia {
         let url = `/api/chart-databyindex?index=${identifier}`
         if (isPreOpenData)
             url += '&preopen=true'
-        return this.getDataByEndpoint(url)
+        return this.getDataByEndpoint<IntradayData>(url)
     }
     /**
      * 
@@ -194,7 +207,7 @@ export class NseIndia {
         const promises = dateRanges.map(async (dateRange) => {
             const url = `/api/historical/cm/equity?symbol=${encodeURIComponent(symbol.toUpperCase())}` +
                 `&series=[%22${activeSeries}%22]&from=${dateRange.start}&to=${dateRange.end}`
-            return this.getDataByEndpoint(url)
+            return this.getDataByEndpoint<EquityHistoricalData>(url)
         })
         return Promise.all(promises)
     }
@@ -204,7 +217,7 @@ export class NseIndia {
      * @returns 
      */
     getEquitySeries(symbol: string): Promise<SeriesData> {
-        return this.getDataByEndpoint(`/api/historical/cm/equity/series?symbol=${encodeURIComponent(symbol
+        return this.getDataByEndpoint<SeriesData>(`/api/historical/cm/equity/series?symbol=${encodeURIComponent(symbol
             .toUpperCase())}`)
     }
     /**
@@ -213,7 +226,8 @@ export class NseIndia {
      * @returns 
      */
     getEquityStockIndices(index: string): Promise<IndexDetails> {
-        return this.getDataByEndpoint(`/api/equity-stockIndices?index=${encodeURIComponent(index.toUpperCase())}`)
+        const url = `/api/equity-stockIndices?index=${encodeURIComponent(index.toUpperCase())}`
+        return this.getDataByEndpoint<IndexDetails>(url)
     }
     /**
      * 
@@ -225,7 +239,7 @@ export class NseIndia {
         let endpoint = `/api/chart-databyindex?index=${index.toUpperCase()}&indices=true`
         if (isPreOpenData)
             endpoint += '&preopen=true'
-        return this.getDataByEndpoint(endpoint)
+        return this.getDataByEndpoint<IntradayData>(endpoint)
     }
     /**
      * 
@@ -238,7 +252,7 @@ export class NseIndia {
         const promises = dateRanges.map(async (dateRange) => {
             const url = `/api/historical/indicesHistory?indexType=${encodeURIComponent(index.toUpperCase())}` +
                 `&from=${dateRange.start}&to=${dateRange.end}`
-            return this.getDataByEndpoint(url)
+            return this.getDataByEndpoint<IndexHistoricalData>(url)
         })
         return Promise.all(promises)
     }
@@ -249,8 +263,8 @@ export class NseIndia {
      * @returns 
      */
     getIndexOptionChain(indexSymbol: string): Promise<OptionChainData> {
-        return this.getDataByEndpoint(`/api/option-chain-indices?symbol=${encodeURIComponent(indexSymbol
-            .toUpperCase())}`)
+        const url = `/api/option-chain-indices?symbol=${encodeURIComponent(indexSymbol.toUpperCase())}`
+        return this.getDataByEndpoint<OptionChainData>(url)
     }
 
     /**
@@ -259,7 +273,7 @@ export class NseIndia {
      * @returns 
      */
     getEquityOptionChain(symbol: string): Promise<OptionChainData> {
-        return this.getDataByEndpoint(`/api/option-chain-equities?symbol=${encodeURIComponent(symbol
+        return this.getDataByEndpoint<OptionChainData>(`/api/option-chain-equities?symbol=${encodeURIComponent(symbol
             .toUpperCase())}`)
     }
     
@@ -269,7 +283,7 @@ export class NseIndia {
          * @returns 
          */
     getCommodityOptionChain(symbol: string): Promise<OptionChainData> {
-        return this.getDataByEndpoint(`/api/option-chain-com?symbol=${encodeURIComponent(symbol
+        return this.getDataByEndpoint<OptionChainData>(`/api/option-chain-com?symbol=${encodeURIComponent(symbol
             .toUpperCase())}`)
     }
 
@@ -278,7 +292,7 @@ export class NseIndia {
      * @returns Glossary content
      */
     getGlossary(): Promise<Glossary> {
-        return this.getDataByEndpoint(ApiList.GLOSSARY)
+        return this.getDataByEndpoint<Glossary>(ApiList.GLOSSARY)
     }
 
     /**
@@ -286,7 +300,7 @@ export class NseIndia {
      * @returns List of trading holidays
      */
     getTradingHolidays(): Promise<Holiday[]> {
-        return this.getDataByEndpoint(ApiList.HOLIDAY_TRADING)
+        return this.getDataByEndpoint<Holiday[]>(ApiList.HOLIDAY_TRADING)
     }
 
     /**
@@ -294,7 +308,7 @@ export class NseIndia {
      * @returns List of clearing holidays
      */
     getClearingHolidays(): Promise<Holiday[]> {
-        return this.getDataByEndpoint(ApiList.HOLIDAY_CLEARING)
+        return this.getDataByEndpoint<Holiday[]>(ApiList.HOLIDAY_CLEARING)
     }
 
     /**
@@ -302,7 +316,7 @@ export class NseIndia {
      * @returns Current market status
      */
     getMarketStatus(): Promise<MarketStatus> {
-        return this.getDataByEndpoint(ApiList.MARKET_STATUS)
+        return this.getDataByEndpoint<MarketStatus>(ApiList.MARKET_STATUS)
     }
 
     /**
@@ -310,7 +324,7 @@ export class NseIndia {
      * @returns Market turnover data
      */
     getMarketTurnover(): Promise<MarketTurnover> {
-        return this.getDataByEndpoint(ApiList.MARKET_TURNOVER)
+        return this.getDataByEndpoint<MarketTurnover>(ApiList.MARKET_TURNOVER)
     }
 
     /**
@@ -318,7 +332,7 @@ export class NseIndia {
      * @returns List of all indices
      */
     getAllIndices(): Promise<IndexDetails[]> {
-        return this.getDataByEndpoint(ApiList.ALL_INDICES)
+        return this.getDataByEndpoint<IndexDetails[]>(ApiList.ALL_INDICES)
     }
 
     /**
@@ -326,7 +340,7 @@ export class NseIndia {
      * @returns List of index names
      */
     getIndexNames(): Promise<IndexName[]> {
-        return this.getDataByEndpoint(ApiList.INDEX_NAMES)
+        return this.getDataByEndpoint<IndexName[]>(ApiList.INDEX_NAMES)
     }
 
     /**
@@ -334,7 +348,7 @@ export class NseIndia {
      * @returns List of circulars
      */
     getCirculars(): Promise<Circular[]> {
-        return this.getDataByEndpoint(ApiList.CIRCULARS)
+        return this.getDataByEndpoint<Circular[]>(ApiList.CIRCULARS)
     }
 
     /**
@@ -342,7 +356,7 @@ export class NseIndia {
      * @returns List of latest circulars
      */
     getLatestCirculars(): Promise<Circular[]> {
-        return this.getDataByEndpoint(ApiList.LATEST_CIRCULARS)
+        return this.getDataByEndpoint<Circular[]>(ApiList.LATEST_CIRCULARS)
     }
 
     /**
@@ -350,7 +364,7 @@ export class NseIndia {
      * @returns Equity master data with categorized indices
      */
     getEquityMaster(): Promise<EquityMaster> {
-        return this.getDataByEndpoint(ApiList.EQUITY_MASTER)
+        return this.getDataByEndpoint<EquityMaster>(ApiList.EQUITY_MASTER)
     }
 
     /**
@@ -358,7 +372,7 @@ export class NseIndia {
      * @returns Pre-open market data
      */
     getPreOpenMarketData(): Promise<PreOpenMarketData[]> {
-        return this.getDataByEndpoint(ApiList.MARKET_DATA_PRE_OPEN)
+        return this.getDataByEndpoint<PreOpenMarketData[]>(ApiList.MARKET_DATA_PRE_OPEN)
     }
 
     /**
@@ -366,7 +380,7 @@ export class NseIndia {
      * @returns Daily reports for capital market
      */
     getMergedDailyReportsCapital(): Promise<DailyReport[]> {
-        return this.getDataByEndpoint(ApiList.MERGED_DAILY_REPORTS_CAPITAL)
+        return this.getDataByEndpoint<DailyReport[]>(ApiList.MERGED_DAILY_REPORTS_CAPITAL)
     }
 
     /**
@@ -374,7 +388,7 @@ export class NseIndia {
      * @returns Daily reports for derivatives
      */
     getMergedDailyReportsDerivatives(): Promise<DailyReport[]> {
-        return this.getDataByEndpoint(ApiList.MERGED_DAILY_REPORTS_DERIVATIVES)
+        return this.getDataByEndpoint<DailyReport[]>(ApiList.MERGED_DAILY_REPORTS_DERIVATIVES)
     }
 
     /**
@@ -382,6 +396,6 @@ export class NseIndia {
      * @returns Daily reports for debt market
      */
     getMergedDailyReportsDebt(): Promise<DailyReport[]> {
-        return this.getDataByEndpoint(ApiList.MERGED_DAILY_REPORTS_DEBT)
+        return this.getDataByEndpoint<DailyReport[]>(ApiList.MERGED_DAILY_REPORTS_DEBT)
     }
 }
