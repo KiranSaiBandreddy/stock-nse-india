@@ -29,16 +29,9 @@ const nseIndia = new NseIndia()
  */
  mainRouter.get('/', async (_req, res) => {
     try {
-        console.log('Fetching market status for root endpoint...')
-        const data = await nseIndia.getDataByEndpoint(ApiList.MARKET_STATUS)
-        console.log('Root endpoint data:', JSON.stringify(data, null, 2))
-        res.json(data)
+        res.json(await nseIndia.getDataByEndpoint(ApiList.MARKET_STATUS))
     } catch (error) {
-        console.error('Error fetching market status for root:', error)
-        res.status(400).json({ 
-            error: error instanceof Error ? error.message : 'Unknown error',
-            stack: error instanceof Error ? error.stack : undefined
-        })
+        res.status(400).json(error)
     }
 })
 
@@ -99,16 +92,9 @@ mainRouter.get('/api/glossary', async (_req, res) => {
  */
 mainRouter.get('/api/marketStatus', async (_req, res) => {
     try {
-        console.log('Fetching market status...')
-        const data = await nseIndia.getDataByEndpoint(ApiList.MARKET_STATUS)
-        console.log('Market status data:', JSON.stringify(data, null, 2))
-        res.json(data)
+        res.json(await nseIndia.getDataByEndpoint(ApiList.MARKET_STATUS))
     } catch (error) {
-        console.error('Error fetching market status:', error)
-        res.status(400).json({ 
-            error: error instanceof Error ? error.message : 'Unknown error',
-            stack: error instanceof Error ? error.stack : undefined
-        })
+        res.status(400).json(error)
     }
 })
 

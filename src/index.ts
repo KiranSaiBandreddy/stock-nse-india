@@ -1,4 +1,7 @@
-import * as puppeteer from 'puppeteer'
+import puppeteer from 'puppeteer-extra'
+import { Browser, Page, Cookie } from 'puppeteer'
+import stealthPlugin from 'puppeteer-extra-plugin-stealth'
+import chromium from '@sparticuz/chromium'
 import UserAgent from 'user-agents'
 import { getDateRangeChunks, sleep } from './utils'
 import {
@@ -57,30 +60,23 @@ export class NseIndia {
     private cookies = ''
     private cookieUsedCount = 0
     private cookieExpiry = new Date().getTime() + (this.cookieMaxAge * 1000)
-    private browser: puppeteer.Browser | null = null;
-    private page: puppeteer.Page | null = null;
+    private browser: Browser | null = null;
+    private page: Page | null = null;
     private async getNseCookies() {
         if (this.cookies === '' || this.cookieUsedCount > 10 || this.cookieExpiry <= new Date().getTime()) {
             this.userAgent = new UserAgent().toString()
-            this.browser = await puppeteer.launch({ 
-                headless: true,
-                executablePath: 'chromium',
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--single-process',
-                    '--disable-extensions'
-                ]
+            puppeteer.use(stealthPlugin());
+            this.browser = await puppeteer.launch({
+                args: chromium.args,
+                defaultViewport: chromium.defaultViewport,
+                executablePath: await chromium.executablePath(),
+                headless: chromium.headless
             });
             this.page = await this.browser.newPage();
             await this.page.setUserAgent(this.userAgent);
             await this.page.goto(`${this.baseUrl}/get-quotes/equity?symbol=TCS`, { waitUntil: 'networkidle2' });
             const cookies = await this.page.cookies();
-            this.cookies = cookies.map((cookie: puppeteer.Cookie) => `${cookie.name}=${cookie.value}`).join('; ');
+            this.cookies = cookies.map((cookie: Cookie) => `${cookie.name}=${cookie.value}`).join('; ');
             this.cookieUsedCount = 0
             this.cookieExpiry = new Date().getTime() + (this.cookieMaxAge * 1000)
         }

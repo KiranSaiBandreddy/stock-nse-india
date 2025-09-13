@@ -4,7 +4,6 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = ["chromium", "glib", "nss", "nspr", "atk", "cups", "libdrm", "dbus", "pango", "alsa-lib", "at-spi2-core", "gtk3", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXrandr", "xorg.libXext", "xorg.libXfixes"]
 
 [workflows]
 runButton = "Project"
@@ -33,10 +32,6 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 40287
-externalPort = 3000
 
 [deployment]
 deploymentTarget = "autoscale"
