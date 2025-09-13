@@ -62,7 +62,20 @@ export class NseIndia {
     private async getNseCookies() {
         if (this.cookies === '' || this.cookieUsedCount > 10 || this.cookieExpiry <= new Date().getTime()) {
             this.userAgent = new UserAgent().toString()
-            this.browser = await puppeteer.launch({ headless: true });
+            this.browser = await puppeteer.launch({ 
+                headless: true,
+                executablePath: 'chromium',
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--single-process',
+                    '--disable-extensions'
+                ]
+            });
             this.page = await this.browser.newPage();
             await this.page.setUserAgent(this.userAgent);
             await this.page.goto(`${this.baseUrl}/get-quotes/equity?symbol=TCS`, { waitUntil: 'networkidle2' });
