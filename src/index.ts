@@ -1,4 +1,4 @@
-import axios from 'axios'
+import * as puppeteer from 'puppeteer'
 import UserAgent from 'user-agents'
 import { getDateRangeChunks, sleep } from './utils'
 import {
@@ -57,28 +57,19 @@ export class NseIndia {
     private cookies = ''
     private cookieUsedCount = 0
     private cookieExpiry = new Date().getTime() + (this.cookieMaxAge * 1000)
-    private noOfConnections = 0
-    
-
+    private browser: puppeteer.Browser | null = null;
+    private page: puppeteer.Page | null = null;
     private async getNseCookies() {
         if (this.cookies === '' || this.cookieUsedCount > 10 || this.cookieExpiry <= new Date().getTime()) {
             this.userAgent = new UserAgent().toString()
-            const response = await axios.get(`${this.baseUrl}/get-quotes/equity?symbol=TCS`, {
-                headers: {...this.baseHeaders,'User-Agent': this.userAgent}
-            })
-            const setCookies: string[] | undefined = response.headers['set-cookie']
-            const cookies: string[] = []
-            if (setCookies) {
-                setCookies.forEach((cookie: string) => {
-                    const cookieKeyValue = cookie.split(';')[0]
-                    cookies.push(cookieKeyValue)
-                })
-                this.cookies = cookies.join('; ')
-                this.cookieUsedCount = 0
-                this.cookieExpiry = new Date().getTime() + (this.cookieMaxAge * 1000)
-            }
-            this.cookieUsedCount++
-            return this.cookies
+            this.browser = await puppeteer.launch({ headless: true });
+            this.page = await this.browser.newPage();
+            await this.page.setUserAgent(this.userAgent);
+            await this.page.goto(`${this.baseUrl}/get-quotes/equity?symbol=TCS`, { waitUntil: 'networkidle2' });
+            const cookies = await this.page.cookies();
+            this.cookies = cookies.map((cookie: puppeteer.Cookie) => `${cookie.name}=${cookie.value}`).join('; ');
+            this.cookieUsedCount = 0
+            this.cookieExpiry = new Date().getTime() + (this.cookieMaxAge * 1000)
         }
         this.cookieUsedCount++
         return this.cookies
@@ -92,24 +83,30 @@ export class NseIndia {
         let retries = 0
         let hasError = false
         do {
-            while (this.noOfConnections >= 5) {
-                await sleep(500)
-            }
-            this.noOfConnections++
             try {
-                const response = await axios.get(url, {
-                    headers: {
-                        ...this.baseHeaders,
-                        'Cookie': await this.getNseCookies(),
-                        'User-Agent': this.userAgent
-                    }
-                })
-                this.noOfConnections--
-                return response.data
+                if (!this.page || this.page.isClosed()) {
+                    await this.getNseCookies();
+                }
+                const response = await this.page!.evaluate(async (url: string, headers: Record<string, string>) => {
+                    const response = await fetch(url, { headers });
+                    return response.json();
+                }, url, {
+                    ...this.baseHeaders,
+                    'Cookie': await this.getNseCookies(),
+                    'User-Agent': this.userAgent
+                });
+                return response;
             } catch (error) {
                 hasError = true
                 retries++
-                this.noOfConnections--
+                if (this.page) {
+                    await this.page.close();
+                    this.page = null;
+                }
+                if (this.browser) {
+                    await this.browser.close();
+                    this.browser = null;
+                }
                 if (retries >= 10)
                     throw error
             }

@@ -75,6 +75,7 @@
     "moment-range": "^4.0.2",
     "ohlc": "^2.0.4",
     "ora": "^5.4.1",
+    "puppeteer": "^24.20.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^4.6.3",
     "user-agents": "^1.0.104",
